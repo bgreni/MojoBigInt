@@ -10,23 +10,34 @@ struct BigInt:
     var data: Data
     var capacity: Int
     var sign: Bool
-    var digits: Int
+    var size: Int
 
     fn __init__(inout self):
         self.sign = False
-        self.digits = 1
+        self.size = 1
         self.capacity = 4
         self.data = self.allocate(self.capacity)
         self.store(0, 0)
 
+    fn __init(inout self, init_val: Int):
+        var val = init_val
+        self.sign = init_val > 0
+        self.size = 0
+        self.capacity = 4
+        self.data = self.allocate(self.capacity)
+        while val != 0:
+            let temp = init_val % 10
+            self.push_digit(temp)
+            val /= 10
+
     fn __init__(inout self, init_val: String):
         self.sign = False
-        self.digits = len(init_val)
-        self.capacity = self.digits * 2
+        self.size = len(init_val)
+        self.capacity = self.size * 2
         self.data = self.allocate(self.capacity)
-        for i in range(self.digits):
+        for i in range(self.size):
             try:
-                self.store(self.digits - 1 - i, atol(init_val[i]))
+                self.store(self.size - 1 - i, atol(init_val[i]))
             except:
                 pass
 
@@ -46,34 +57,35 @@ struct BigInt:
     fn store(self, ind: Int, val: InternalType):
         self.data.store(ind, val)
 
-    # TODO: resize on full container
     fn push_digit(inout self, digit: InternalType):
-        if self.digits == self.capacity:
+        if self.size == self.capacity:
             self.grow()
-        self.store(self.digits, digit)
-        self.digits += 1
+        self.store(self.size, digit)
+        self.size += 1
     
-    # TODO: downsize when appropriate
     fn pop_digit(inout self):
-        self.store(self.digits -1, 0)
-        self.digits -= 1
+        self.store(self.size -1, 0)
+        self.size -= 1
     
+    @always_inline
     fn __getitem__(self, ind: Int) -> InternalType:
         return self.load(ind)
     
+    @always_inline
     fn __setitem__(self, ind: Int, val: InternalType):
         self.store(ind, val)
 
     fn __copyinit__(inout self, other: Self):
         self.sign = other.sign
         self.capacity = other.capacity
-        self.digits = other.digits
+        self.size = other.size
         self.data = self.allocate(self.capacity)
-        memcpy(self.data, other.data, self.digits)
+        memcpy(self.data, other.data, self.size)
 
+    # TODO: handle negative values
     fn add(inout self, other: BigInt):
         var carry: InternalType = 0 
-        for i in range(self.digits):
+        for i in range(self.size):
             let temp = self[i] + other[i] + carry
             self[i] = temp % BASE
             carry = temp / BASE
@@ -83,9 +95,9 @@ struct BigInt:
 
     fn __add__(self, other: BigInt) -> Self:
         var carry: InternalType = 0 
-        var out = self if self.digits > other.digits else other
-        let size = max(self.digits, other.digits)
-        for i in range(self.digits):
+        var out = self if self.size > other.size else other
+        let size = max(self.size, other.size)
+        for i in range(self.size):
             let temp = self[i] + other[i] + carry
             out[i] = temp % BASE
             carry = temp / BASE
@@ -98,30 +110,89 @@ struct BigInt:
     fn grow(inout self, size: Int = 0):
         let new_size = self.capacity * 2 if size == 0 else size
         let new_data = self.allocate(new_size)
-        memcpy(new_data, self.data, self.digits)
+        memcpy(new_data, self.data, self.size)
         self.data.free()
         self.data = new_data
         self.capacity = new_size
 
     fn shrink(inout self):
-        let new_data = self.allocate(self.digits)
-        memcpy(new_data, self.data, self.digits)
+        let new_data = self.allocate(self.size)
+        memcpy(new_data, self.data, self.size)
         self.data.free()
         self.data = new_data
     
-
     @always_inline
     fn __len__(self) -> Int:
-        return self.digits
+        return self.size
     
     fn print(self):
         var s = String()
-        for i in range(self.digits - 1, -1, -1):
+        for i in range(self.size - 1, -1, -1):
             let v = self.load(i)
             s += v
         print(s)
 
     fn __eq__(self, other: BigInt) -> Bool:
-        if self.digits != other.digits:
+        if self.size != other.size:
             return False
-        return memcmp[Type](self.data, other.data, self.digits) == 0
+        return memcmp[Type](self.data, other.data, self.size) == 0
+    
+    fn __lt__(self, other: BigInt) -> Bool:
+        if self.size < other.size:
+            return True
+        if self.size > other.size:
+            return False
+        
+        for i in range(self.size - 1, -1, -1):
+            let n1 = self.load(i)
+            let n2 = other.load(i)
+            if n1 < n2:
+                return True
+            elif n2 < n1:
+                return False
+        return False
+
+    fn __gt__(self, other: BigInt) -> Bool:
+        if self.size > other.size:
+            return True
+        if self.size < other.size:
+            return False
+        
+        for i in range(self.size - 1, -1, -1):
+            let n1 = self.load(i)
+            let n2 = other.load(i)
+            if n1 > n2:
+                return True
+            elif n2 > n1:
+                return False
+        return False
+    
+    fn __le__(self, other: BigInt) -> Bool:
+        if self.size < other.size:
+            return True
+        if self.size > other.size:
+            return False
+        
+        for i in range(self.size - 1, -1, -1):
+            let n1 = self.load(i)
+            let n2 = other.load(i)
+            if n1 < n2:
+                return True
+            elif n2 < n1:
+                return False
+        return True
+
+    fn __ge__(self, other: BigInt) -> Bool:
+        if self.size > other.size:
+            return True
+        if self.size < other.size:
+            return False
+        
+        for i in range(self.size - 1, -1, -1):
+            let n1 = self.load(i)
+            let n2 = other.load(i)
+            if n1 > n2:
+                return True
+            elif n2 > n1:
+                return False
+        return True
